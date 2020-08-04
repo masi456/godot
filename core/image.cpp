@@ -1900,14 +1900,14 @@ void Image::create(int p_width, int p_height, bool p_use_mipmaps, Format p_forma
 	ERR_FAIL_COND_MSG(p_width > MAX_WIDTH, "Image width cannot be greater than " + itos(MAX_WIDTH) + ".");
 	ERR_FAIL_COND_MSG(p_height > MAX_HEIGHT, "Image height cannot be greater than " + itos(MAX_HEIGHT) + ".");
 	ERR_FAIL_COND_MSG(p_width * p_height > MAX_PIXELS, "Too many pixels for image, maximum is " + itos(MAX_PIXELS));
+	ERR_FAIL_COND_MSG(write_lock.ptr(), "Cannot create image when it is locked.");
 
 	int mm = 0;
 	int size = _get_dst_image_size(p_width, p_height, p_format, mm, p_use_mipmaps ? -1 : 0);
-	data.resize(size);
 
-	{
-		uint8_t *w = data.ptrw();
-		zeromem(w, size);
+	if (data.resize(size) == OK) {
+		PoolVector<uint8_t>::Write w = data.write();
+		zeromem(w.ptr(), size);
 	}
 
 	width = p_width;
