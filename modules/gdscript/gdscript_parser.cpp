@@ -732,12 +732,28 @@ void GDScriptParser::parse_class_body() {
 	}
 }
 
+GDScriptParser::AnonVariableNode *GDScriptParser::parse_anon_variable() {
+	AnonVariableNode *anon_variable = alloc_node<AnonVariableNode>();
+	if (match(GDScriptTokenizer::Token::EQUAL)) {
+		// Initializer.
+		anon_variable->initializer = parse_expression(false);
+	}
+
+	// Error if type
+	// Error if no assignment
+
+	end_statement("anon variable declaration");
+	return anon_variable;
+}
+
 GDScriptParser::VariableNode *GDScriptParser::parse_variable() {
 	return parse_variable(true);
 }
 
 GDScriptParser::VariableNode *GDScriptParser::parse_variable(bool p_allow_property) {
-	if (!consume(GDScriptTokenizer::Token::IDENTIFIER, R"(Expected variable name after "var".)")) {
+	if (!match(GDScriptTokenizer::Token::IDENTIFIER) &&
+			!match(GDScriptTokenizer::Token::UNDERSCORE)) {
+		push_error(R"(Expected variable name after "var".)");
 		return nullptr;
 	}
 
@@ -789,7 +805,7 @@ GDScriptParser::VariableNode *GDScriptParser::parse_variable(bool p_allow_proper
 
 	end_statement("variable declaration");
 
-	variable->export_info.name = variable->identifier->name;
+	variable->export_info.name = variable->identifier ? variable->identifier->name : "";
 
 	return variable;
 }
@@ -1258,27 +1274,31 @@ GDScriptParser::SuiteNode *GDScriptParser::parse_suite(const String &p_context, 
 		switch (statement->type) {
 			case Node::VARIABLE: {
 				VariableNode *variable = static_cast<VariableNode *>(statement);
-				const SuiteNode::Local &local = current_suite->get_local(variable->identifier->name);
-				if (local.type != SuiteNode::Local::UNDEFINED) {
-					push_error(vformat(R"(There is already a %s named "%s" declared in this scope.)", local.get_name(), variable->identifier->name));
+				if (variable->identifier) {
+					const SuiteNode::Local &local = current_suite->get_local(variable->identifier->name);
+					if (local.type != SuiteNode::Local::UNDEFINED) {
+						push_error(vformat(R"(There is already a %s named "%s" declared in this scope.)", local.get_name(), variable->identifier->name));
+					}
+					current_suite->add_local(variable);
+					break;
 				}
-				current_suite->add_local(variable);
-				break;
 			}
 			case Node::CONSTANT: {
 				ConstantNode *constant = static_cast<ConstantNode *>(statement);
-				const SuiteNode::Local &local = current_suite->get_local(constant->identifier->name);
-				if (local.type != SuiteNode::Local::UNDEFINED) {
-					String name;
-					if (local.type == SuiteNode::Local::CONSTANT) {
-						name = "constant";
-					} else {
-						name = "variable";
+				if (constant->identifier) {
+					const SuiteNode::Local &local = current_suite->get_local(constant->identifier->name);
+					if (local.type != SuiteNode::Local::UNDEFINED) {
+						String name;
+						if (local.type == SuiteNode::Local::CONSTANT) {
+							name = "constant";
+						} else {
+							name = "variable";
+						}
+						push_error(vformat(R"(There is already a %s named "%s" declared in this scope.)", name, constant->identifier->name));
 					}
-					push_error(vformat(R"(There is already a %s named "%s" declared in this scope.)", name, constant->identifier->name));
+					current_suite->add_local(constant);
+					break;
 				}
-				current_suite->add_local(constant);
-				break;
 			}
 			default:
 				break;
@@ -1306,10 +1326,14 @@ GDScriptParser::Node *GDScriptParser::parse_statement() {
 			result = alloc_node<PassNode>();
 			end_statement(R"("pass")");
 			break;
-		case GDScriptTokenizer::Token::VAR:
+		case GDScriptTokenizer::Token::VAR: {
 			advance();
-			result = parse_variable();
-			break;
+			if (match(GDScriptTokenizer::Token::Type::UNDERSCORE)) {
+				result = parse_anon_variable();
+			} else {
+				result = parse_variable();
+			}
+		} break;
 		case GDScriptTokenizer::Token::CONST:
 			advance();
 			result = parse_constant();
@@ -1870,9 +1894,14 @@ GDScriptParser::IdentifierNode *GDScriptParser::parse_identifier() {
 }
 
 GDScriptParser::ExpressionNode *GDScriptParser::parse_identifier(ExpressionNode *p_previous_operand, bool p_can_assign) {
+	if (previous.type == GDScriptTokenizer::Token::UNDERSCORE) {
+		return nullptr;
+	}
+
 	if (!previous.is_identifier()) {
 		ERR_FAIL_V_MSG(nullptr, "Parser bug: parsing literal node without literal token.");
 	}
+
 	IdentifierNode *identifier = alloc_node<IdentifierNode>();
 	identifier->name = previous.get_identifier();
 
