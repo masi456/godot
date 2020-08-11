@@ -194,6 +194,7 @@ public:
 		enum Type {
 			NONE,
 			ANNOTATION,
+			ANONVARIABLE,
 			ARRAY,
 			ASSERT,
 			ASSIGNMENT,
@@ -971,6 +972,14 @@ public:
 		}
 	};
 
+	struct AnonVariableNode : public Node {
+		ExpressionNode *initializer = nullptr;
+
+		AnonVariableNode() {
+			type = ANONVARIABLE;
+		}
+	};
+
 	struct VariableNode : public Node {
 		enum PropertyStyle {
 			PROP_NONE,
@@ -1219,6 +1228,7 @@ private:
 	Node *parse_statement();
 	VariableNode *parse_variable();
 	VariableNode *parse_variable(bool p_allow_property);
+	AnonVariableNode *parse_anon_variable();
 	VariableNode *parse_property(VariableNode *p_variable, bool p_need_indent);
 	void parse_property_getter(VariableNode *p_variable);
 	void parse_property_setter(VariableNode *p_variable);

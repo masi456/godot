@@ -2060,6 +2060,13 @@ Error GDScriptCompiler::_parse_block(CodeGen &codegen, const GDScriptParser::Sui
 				codegen.opcodes.push_back(GDScriptFunction::OPCODE_BREAKPOINT);
 #endif
 			} break;
+			case GDScriptParser::Node::ANONVARIABLE: {
+				const GDScriptParser::AnonVariableNode *lv = static_cast<const GDScriptParser::AnonVariableNode *>(s);
+				codegen.alloc_stack(p_stack_level);
+				if (lv->initializer) {
+					_parse_expression(codegen, lv->initializer, p_stack_level);
+				}
+			} break;
 			case GDScriptParser::Node::VARIABLE: {
 				const GDScriptParser::VariableNode *lv = static_cast<const GDScriptParser::VariableNode *>(s);
 
